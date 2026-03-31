@@ -7,7 +7,7 @@ import { getCabinetStats, createSession, getSessionQrCode, getSessionCheckins, g
 import { useAuthStore } from '../store/authStore';
 import StatCard from '../components/StatCard';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { formatDate, getProgressColor } from '../utils';
+import { getProgressColor } from '../utils';
 
 export default function CabinetDashboard() {
   const { user } = useAuthStore();
@@ -33,8 +33,9 @@ export default function CabinetDashboard() {
     try {
       const res = await getCabinetStats();
       setStats(res.data.data);
-    } catch {}
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error('Failed to fetch stats:', e);
+    } finally { setLoading(false); }
   };
 
   useEffect(() => {
@@ -93,8 +94,9 @@ export default function CabinetDashboard() {
     try {
       const res = await getNeverAttended();
       setNeverAttended(res.data.data || []);
-    } catch {}
-    finally { setLoadingNever(false); }
+    } catch (e) {
+      console.error('Failed to load never-attended list:', e);
+    } finally { setLoadingNever(false); }
   };
 
   const downloadQR = (format) => {
