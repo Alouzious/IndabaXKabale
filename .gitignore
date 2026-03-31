@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Rust build artifacts
+backend/target/
+
+# Environment files
+.env
+frontend/.env
+backend/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# SQLx offline query cache (keep for CI)
+# backend/.sqlx/
