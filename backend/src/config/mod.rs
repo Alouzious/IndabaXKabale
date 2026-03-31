@@ -8,15 +8,26 @@ pub struct Config {
     pub frontend_url: String,
     pub host: String,
     pub port: u16,
+    pub environment: String,
 }
 
 impl Config {
     pub fn from_env() -> Result<Self> {
+        let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
+        
+        // In production, JWT_SECRET is required
+        let jwt_secret = if environment == "production" {
+            std::env::var("JWT_SECRET")
+                .map_err(|_| anyhow::anyhow!("JWT_SECRET must be set in production"))?
+        } else {
+            std::env::var("JWT_SECRET")
+                .unwrap_or_else(|_| "dev_secret_key_change_in_production".to_string())
+        };
+
         Ok(Config {
             database_url: std::env::var("DATABASE_URL")
                 .map_err(|_| anyhow::anyhow!("DATABASE_URL must be set"))?,
-            jwt_secret: std::env::var("JWT_SECRET")
-                .unwrap_or_else(|_| "super_secret_jwt_key_change_in_production".to_string()),
+            jwt_secret,
             jwt_expiry_hours: std::env::var("JWT_EXPIRY_HOURS")
                 .unwrap_or_else(|_| "24".to_string())
                 .parse()
@@ -28,6 +39,7 @@ impl Config {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .unwrap_or(8080),
+            environment,
         })
     }
 }

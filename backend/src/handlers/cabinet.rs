@@ -3,7 +3,7 @@ use axum::{
     Extension, Json,
 };
 use serde_json::{json, Value};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -40,7 +40,7 @@ pub async fn get_stats(
     .fetch_one(&pool)
     .await?;
 
-    let sessions_with_stats = sqlx::query!(
+    let sessions_with_stats = sqlx::query(
         "SELECT s.id, s.title, s.capacity, s.is_active, s.start_time, s.location,
                 COUNT(att.id)::INTEGER as checkin_count
          FROM sessions s
@@ -51,24 +51,34 @@ pub async fn get_stats(
     .fetch_all(&pool)
     .await?;
 
-    let sessions_data: Vec<Value> = sessions_with_stats
-        .iter()
-        .map(|s| {
-            let checkin_count = s.checkin_count.unwrap_or(0);
-            json!({
-                "id": s.id,
-                "title": s.title,
-                "capacity": s.capacity,
-                "checkin_count": checkin_count,
-                "is_active": s.is_active,
-                "start_time": s.start_time,
-                "location": s.location,
-                "fill_percentage": if s.capacity > 0 { (checkin_count as f64 / s.capacity as f64 * 100.0) as i32 } else { 0 }
-            })
-        })
-        .collect();
+    let mut sessions_data: Vec<Value> = Vec::with_capacity(sessions_with_stats.len());
+    for s in sessions_with_stats {
+        let id: Uuid = s.try_get("id")?;
+        let title: String = s.try_get("title")?;
+        let capacity: i32 = s.try_get("capacity")?;
+        let is_active: bool = s.try_get("is_active")?;
+        let start_time: chrono::DateTime<chrono::Utc> = s.try_get("start_time")?;
+        let location: Option<String> = s.try_get("location")?;
+        let checkin_count: i32 = s.try_get("checkin_count")?;
+        let fill_percentage = if capacity > 0 {
+            (checkin_count as f64 / capacity as f64 * 100.0) as i32
+        } else {
+            0
+        };
 
-    let recent_checkins = sqlx::query!(
+        sessions_data.push(json!({
+            "id": id,
+            "title": title,
+            "capacity": capacity,
+            "checkin_count": checkin_count,
+            "is_active": is_active,
+            "start_time": start_time,
+            "location": location,
+            "fill_percentage": fill_percentage
+        }));
+    }
+
+    let recent_checkins = sqlx::query(
         "SELECT a.full_name, a.course_or_profession, att.checked_in_at, s.title as session_title
          FROM attendances att
          JOIN attendees a ON att.attendee_id = a.id
@@ -79,15 +89,19 @@ pub async fn get_stats(
     .fetch_all(&pool)
     .await?;
 
-    let recent_data: Vec<Value> = recent_checkins
-        .iter()
-        .map(|r| json!({
-            "full_name": r.full_name,
-            "course_or_profession": r.course_or_profession,
-            "checked_in_at": r.checked_in_at,
-            "session_title": r.session_title
-        }))
-        .collect();
+    let mut recent_data: Vec<Value> = Vec::with_capacity(recent_checkins.len());
+    for r in recent_checkins {
+        let full_name: String = r.try_get("full_name")?;
+        let course_or_profession: String = r.try_get("course_or_profession")?;
+        let checked_in_at: chrono::DateTime<chrono::Utc> = r.try_get("checked_in_at")?;
+        let session_title: String = r.try_get("session_title")?;
+        recent_data.push(json!({
+            "full_name": full_name,
+            "course_or_profession": course_or_profession,
+            "checked_in_at": checked_in_at,
+            "session_title": session_title
+        }));
+    }
 
     Ok(Json(json!({
         "success": true,
@@ -110,26 +124,33 @@ pub async fn get_session_checkins(
     Extension(_claims): Extension<Claims>,
     Path(session_id): Path<Uuid>,
 ) -> AppResult<Json<Value>> {
-    let checkins = sqlx::query!(
+    let checkin_rows = sqlx::query(
         "SELECT a.id as attendee_id, a.full_name, a.email, a.course_or_profession,
                 att.checked_in_at
          FROM attendances att
          JOIN attendees a ON att.attendee_id = a.id
          WHERE att.session_id = $1
          ORDER BY att.checked_in_at ASC",
-        session_id
     )
+    .bind(session_id)
     .fetch_all(&pool)
-    .await?
-    .into_iter()
-    .map(|r| json!({
-        "attendee_id": r.attendee_id,
-        "full_name": r.full_name,
-        "email": r.email,
-        "course_or_profession": r.course_or_profession,
-        "checked_in_at": r.checked_in_at
-    }))
-    .collect::<Vec<_>>();
+    .await?;
+
+    let mut checkins = Vec::with_capacity(checkin_rows.len());
+    for r in checkin_rows {
+        let attendee_id: Uuid = r.try_get("attendee_id")?;
+        let full_name: String = r.try_get("full_name")?;
+        let email: String = r.try_get("email")?;
+        let course_or_profession: String = r.try_get("course_or_profession")?;
+        let checked_in_at: chrono::DateTime<chrono::Utc> = r.try_get("checked_in_at")?;
+        checkins.push(json!({
+            "attendee_id": attendee_id,
+            "full_name": full_name,
+            "email": email,
+            "course_or_profession": course_or_profession,
+            "checked_in_at": checked_in_at
+        }));
+    }
 
     Ok(Json(json!({
         "success": true,
@@ -143,7 +164,7 @@ pub async fn get_never_attended(
     State((pool, _config)): State<(PgPool, Config)>,
     Extension(_claims): Extension<Claims>,
 ) -> AppResult<Json<Value>> {
-    let attendees = sqlx::query!(
+    let attendee_rows = sqlx::query(
         "SELECT id, full_name, email, course_or_profession, created_at
          FROM attendees
          WHERE NOT EXISTS (
@@ -152,16 +173,23 @@ pub async fn get_never_attended(
          ORDER BY created_at DESC"
     )
     .fetch_all(&pool)
-    .await?
-    .into_iter()
-    .map(|r| json!({
-        "id": r.id,
-        "full_name": r.full_name,
-        "email": r.email,
-        "course_or_profession": r.course_or_profession,
-        "created_at": r.created_at
-    }))
-    .collect::<Vec<_>>();
+    .await?;
+
+    let mut attendees = Vec::with_capacity(attendee_rows.len());
+    for r in attendee_rows {
+        let id: Uuid = r.try_get("id")?;
+        let full_name: String = r.try_get("full_name")?;
+        let email: String = r.try_get("email")?;
+        let course_or_profession: String = r.try_get("course_or_profession")?;
+        let created_at: chrono::DateTime<chrono::Utc> = r.try_get("created_at")?;
+        attendees.push(json!({
+            "id": id,
+            "full_name": full_name,
+            "email": email,
+            "course_or_profession": course_or_profession,
+            "created_at": created_at
+        }));
+    }
 
     Ok(Json(json!({
         "success": true,

@@ -5,7 +5,7 @@ use axum::{
 use bcrypt::{hash, DEFAULT_COST};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -35,52 +35,61 @@ pub async fn list_attendees(
     // List attendee profiles (not per-session)
     let attendees = if let Some(ref search) = params.search {
         let pattern = format!("%{}%", search);
-        sqlx::query!(
+        let rows = sqlx::query(
             "SELECT a.id, a.full_name, a.email, a.phone, a.course_or_profession, a.created_at,
-                    COUNT(att.id)::INTEGER as total_checkins
+                    COUNT(att.id)::BIGINT as total_checkins
              FROM attendees a
              LEFT JOIN attendances att ON att.attendee_id = a.id
              WHERE a.full_name ILIKE $1 OR a.email ILIKE $1 OR a.course_or_profession ILIKE $1
              GROUP BY a.id
              ORDER BY a.created_at DESC LIMIT $2 OFFSET $3",
-            pattern, per_page, offset
         )
+        .bind(pattern)
+        .bind(per_page)
+        .bind(offset)
         .fetch_all(&pool)
-        .await?
-        .into_iter()
-        .map(|r| json!({
-            "id": r.id,
-            "full_name": r.full_name,
-            "email": r.email,
-            "phone": r.phone,
-            "course_or_profession": r.course_or_profession,
-            "created_at": r.created_at,
-            "total_checkins": r.total_checkins.unwrap_or(0)
-        }))
-        .collect::<Vec<_>>()
+        .await?;
+
+        let mut data = Vec::with_capacity(rows.len());
+        for row in rows {
+            data.push(json!({
+                "id": row.try_get::<Uuid, _>("id")?,
+                "full_name": row.try_get::<String, _>("full_name")?,
+                "email": row.try_get::<String, _>("email")?,
+                "phone": row.try_get::<Option<String>, _>("phone")?,
+                "course_or_profession": row.try_get::<String, _>("course_or_profession")?,
+                "created_at": row.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")?,
+                "total_checkins": row.try_get::<i64, _>("total_checkins")?
+            }));
+        }
+        data
     } else {
-        sqlx::query!(
+        let rows = sqlx::query(
             "SELECT a.id, a.full_name, a.email, a.phone, a.course_or_profession, a.created_at,
-                    COUNT(att.id)::INTEGER as total_checkins
+                    COUNT(att.id)::BIGINT as total_checkins
              FROM attendees a
              LEFT JOIN attendances att ON att.attendee_id = a.id
              GROUP BY a.id
              ORDER BY a.created_at DESC LIMIT $1 OFFSET $2",
-            per_page, offset
         )
+        .bind(per_page)
+        .bind(offset)
         .fetch_all(&pool)
-        .await?
-        .into_iter()
-        .map(|r| json!({
-            "id": r.id,
-            "full_name": r.full_name,
-            "email": r.email,
-            "phone": r.phone,
-            "course_or_profession": r.course_or_profession,
-            "created_at": r.created_at,
-            "total_checkins": r.total_checkins.unwrap_or(0)
-        }))
-        .collect::<Vec<_>>()
+        .await?;
+
+        let mut data = Vec::with_capacity(rows.len());
+        for row in rows {
+            data.push(json!({
+                "id": row.try_get::<Uuid, _>("id")?,
+                "full_name": row.try_get::<String, _>("full_name")?,
+                "email": row.try_get::<String, _>("email")?,
+                "phone": row.try_get::<Option<String>, _>("phone")?,
+                "course_or_profession": row.try_get::<String, _>("course_or_profession")?,
+                "created_at": row.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")?,
+                "total_checkins": row.try_get::<i64, _>("total_checkins")?
+            }));
+        }
+        data
     };
 
     let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM attendees")
@@ -109,7 +118,7 @@ pub async fn export_csv(
 
     // Export check-ins; if session_id provided, filter to that session
     let rows = if let Some(session_id) = params.session_id {
-        sqlx::query!(
+        let rows = sqlx::query(
             "SELECT a.full_name, a.email, a.phone, a.course_or_profession,
                     att.checked_in_at, s.title as session_title
              FROM attendances att
@@ -117,15 +126,25 @@ pub async fn export_csv(
              JOIN sessions s ON att.session_id = s.id
              WHERE att.session_id = $1
              ORDER BY att.checked_in_at ASC",
-            session_id
         )
+        .bind(session_id)
         .fetch_all(&pool)
-        .await?
-        .into_iter()
-        .map(|r| (r.full_name, r.email, r.phone, r.course_or_profession, r.checked_in_at.to_string(), r.session_title))
-        .collect::<Vec<_>>()
+        .await?;
+
+        let mut data = Vec::with_capacity(rows.len());
+        for row in rows {
+            data.push((
+                row.try_get::<String, _>("full_name")?,
+                row.try_get::<String, _>("email")?,
+                row.try_get::<Option<String>, _>("phone")?,
+                row.try_get::<String, _>("course_or_profession")?,
+                row.try_get::<chrono::DateTime<chrono::Utc>, _>("checked_in_at")?.to_string(),
+                row.try_get::<String, _>("session_title")?,
+            ));
+        }
+        data
     } else {
-        sqlx::query!(
+        let rows = sqlx::query(
             "SELECT a.full_name, a.email, a.phone, a.course_or_profession,
                     att.checked_in_at, s.title as session_title
              FROM attendances att
@@ -134,10 +153,20 @@ pub async fn export_csv(
              ORDER BY att.checked_in_at ASC"
         )
         .fetch_all(&pool)
-        .await?
-        .into_iter()
-        .map(|r| (r.full_name, r.email, r.phone, r.course_or_profession, r.checked_in_at.to_string(), r.session_title))
-        .collect::<Vec<_>>()
+        .await?;
+
+        let mut data = Vec::with_capacity(rows.len());
+        for row in rows {
+            data.push((
+                row.try_get::<String, _>("full_name")?,
+                row.try_get::<String, _>("email")?,
+                row.try_get::<Option<String>, _>("phone")?,
+                row.try_get::<String, _>("course_or_profession")?,
+                row.try_get::<chrono::DateTime<chrono::Utc>, _>("checked_in_at")?.to_string(),
+                row.try_get::<String, _>("session_title")?,
+            ));
+        }
+        data
     };
 
     let mut csv_content = "Full Name,Email,Phone,Course/Profession,Session,Checked In At\n".to_string();
@@ -245,7 +274,7 @@ pub async fn get_analytics(
     Extension(_claims): Extension<Claims>,
 ) -> AppResult<Json<Value>> {
     // Check-ins per day (last 14 days)
-    let daily_checkins = sqlx::query!(
+    let daily_rows = sqlx::query(
         "SELECT DATE(checked_in_at) as date, COUNT(*) as count
          FROM attendances
          WHERE checked_in_at >= NOW() - INTERVAL '14 days'
@@ -253,13 +282,18 @@ pub async fn get_analytics(
          ORDER BY date ASC"
     )
     .fetch_all(&pool)
-    .await?
-    .into_iter()
-    .map(|r| json!({ "date": r.date, "count": r.count }))
-    .collect::<Vec<_>>();
+    .await?;
+
+    let mut daily_checkins = Vec::with_capacity(daily_rows.len());
+    for row in daily_rows {
+        daily_checkins.push(json!({
+            "date": row.try_get::<chrono::NaiveDate, _>("date")?,
+            "count": row.try_get::<i64, _>("count")?
+        }));
+    }
 
     // Sessions popularity (by check-in count)
-    let session_popularity = sqlx::query!(
+    let popularity_rows = sqlx::query(
         "SELECT s.title, COUNT(att.id)::INTEGER as checkin_count, s.capacity
          FROM sessions s
          LEFT JOIN attendances att ON att.session_id = s.id
@@ -267,21 +301,32 @@ pub async fn get_analytics(
          ORDER BY checkin_count DESC"
     )
     .fetch_all(&pool)
-    .await?
-    .into_iter()
-    .map(|r| json!({ "title": r.title, "checkins": r.checkin_count.unwrap_or(0), "capacity": r.capacity }))
-    .collect::<Vec<_>>();
+    .await?;
+
+    let mut session_popularity = Vec::with_capacity(popularity_rows.len());
+    for row in popularity_rows {
+        session_popularity.push(json!({
+            "title": row.try_get::<String, _>("title")?,
+            "checkins": row.try_get::<i32, _>("checkin_count")?,
+            "capacity": row.try_get::<i32, _>("capacity")?
+        }));
+    }
 
     // Top professions (from attendees table)
-    let professions = sqlx::query!(
+    let profession_rows = sqlx::query(
         "SELECT course_or_profession, COUNT(*) as count FROM attendees
          GROUP BY course_or_profession ORDER BY count DESC LIMIT 10"
     )
     .fetch_all(&pool)
-    .await?
-    .into_iter()
-    .map(|r| json!({ "name": r.course_or_profession, "count": r.count }))
-    .collect::<Vec<_>>();
+    .await?;
+
+    let mut professions = Vec::with_capacity(profession_rows.len());
+    for row in profession_rows {
+        professions.push(json!({
+            "name": row.try_get::<String, _>("course_or_profession")?,
+            "count": row.try_get::<i64, _>("count")?
+        }));
+    }
 
     Ok(Json(json!({
         "success": true,

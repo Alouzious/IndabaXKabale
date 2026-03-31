@@ -1,0 +1,13 @@
+.git
+.gitignore
+.github
+target/
+*.db
+*.log
+.env
+.env.local
+DEPLOYMENT.md
+README.md
+frontend/
+.vscode
+.idea

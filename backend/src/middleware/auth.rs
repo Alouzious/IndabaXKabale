@@ -6,7 +6,6 @@ use axum::{
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{config::Config, errors::AppError, models::user::UserRole};
 

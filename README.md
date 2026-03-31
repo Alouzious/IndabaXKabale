@@ -393,6 +393,68 @@ flyctl deploy
 
 ---
 
+## 🚀 Deployment
+
+### Infrastructure Stack
+- **Backend**: Render.com (Rust/Axum Docker container)
+- **Frontend**: Vercel (React/Vite)
+- **Database**: Neon (PostgreSQL)
+- **CI/CD**: GitHub Actions (automated testing & build)
+
+### Quick Start Deployment
+
+1. **Prepare for Deployment**
+   ```bash
+   bash setup-deployment.sh
+   git add .
+   git commit -m "Setup deployment configuration"
+   git push origin main
+   ```
+
+2. **Check Deployment Readiness**
+   ```bash
+   bash check-deployment.sh
+   ```
+
+3. **Follow the Detailed Guide**
+   - See [`DEPLOYMENT.md`](DEPLOYMENT.md) for step-by-step instructions
+   - Includes setup for Neon, Render, Vercel, and environment variables
+
+### Environment Variables
+
+**Backend (Render)**
+```env
+DATABASE_URL=postgresql://user:pass@ep-xxxx.neon.tech/db?sslmode=require
+JWT_SECRET=<generate with: openssl rand -base64 32>
+FRONTEND_URL=https://your-vercel-domain.vercel.app
+ENVIRONMENT=production
+```
+
+**Frontend (Vercel)**
+```env
+VITE_API_BASE_URL=https://your-render-backend.onrender.com/api/v1
+```
+
+### Automated Testing & Deployment
+
+- **Backend Tests**: Triggered on push to backend/ (PostgreSQL 15, Rust tests)
+- **Frontend Lint & Build**: Triggered on push to frontend/ (ESLint, Vite build)
+- **View Status**: GitHub Actions tab in repository
+
+### Domain Setup (Optional)
+
+After deployment, connect custom domains:
+- **Render**: Settings → SSL/TLS & Custom Domains
+- **Vercel**: Settings → Domains
+
+### Monitoring & Logs
+
+- **Render Logs**: Dashboard → Web Service → Logs tab
+- **Vercel Logs**: Dashboard → Deployments → View Logs
+- **Database Logs**: Neon Console → Monitoring
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:

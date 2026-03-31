@@ -6,7 +6,6 @@ mod middleware;
 mod models;
 mod routes;
 
-use axum::Router;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -26,11 +25,30 @@ async fn main() -> anyhow::Result<()> {
     // Run migrations
     sqlx::migrate!("./migrations").run(&pool).await?;
 
+    tracing::info!("Environment: {}", config.environment);
+    tracing::info!("Frontend URL: {}", config.frontend_url);
+
     let frontend_url = config.frontend_url.clone();
-    let cors = CorsLayer::new()
-        .allow_origin(frontend_url.parse::<axum::http::HeaderValue>().unwrap_or(axum::http::HeaderValue::from_static("*")))
-        .allow_methods(Any)
-        .allow_headers(Any);
+    
+    // Configure CORS based on environment
+    let cors = if config.environment == "production" {
+        // In production, strictly allow only frontend URL
+        CorsLayer::new()
+            .allow_origin(
+                frontend_url
+                    .parse::<axum::http::HeaderValue>()
+                    .expect("Invalid FRONTEND_URL")
+            )
+            .allow_methods(Any)
+            .allow_headers(Any)
+            .allow_credentials()
+    } else {
+        // In development, be more permissive
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
 
     let app = routes::create_router(pool, config)
         .layer(cors)

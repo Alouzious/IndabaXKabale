@@ -2,9 +2,8 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use chrono::Utc;
 use serde_json::{json, Value};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -37,19 +36,23 @@ pub async fn create_registration(
     }
 
     // Check session exists and is active
-    let session = sqlx::query!(
+    let session = sqlx::query(
         "SELECT id, capacity, registration_count, is_active FROM sessions WHERE id = $1",
-        payload.session_id
     )
+    .bind(payload.session_id)
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Session not found".to_string()))?;
 
-    if !session.is_active {
+    let session_is_active: bool = session.try_get("is_active")?;
+    let session_registration_count: i32 = session.try_get("registration_count")?;
+    let session_capacity: i32 = session.try_get("capacity")?;
+
+    if !session_is_active {
         return Err(AppError::BadRequest("This session is no longer accepting registrations".to_string()));
     }
 
-    if session.registration_count >= session.capacity {
+    if session_registration_count >= session_capacity {
         return Err(AppError::Conflict("Session is at full capacity".to_string()));
     }
 
@@ -108,10 +111,10 @@ pub async fn verify_registration(
     .await?
     .ok_or_else(|| AppError::NotFound("Registration not found".to_string()))?;
 
-    let session = sqlx::query!(
+    let session = sqlx::query(
         "SELECT title, start_time, end_time, location FROM sessions WHERE id = $1",
-        registration.session_id
     )
+    .bind(registration.session_id)
     .fetch_optional(&pool)
     .await?;
 
@@ -119,12 +122,18 @@ pub async fn verify_registration(
         "success": true,
         "data": {
             "registration": registration,
-            "session": session.map(|s| json!({
-                "title": s.title,
-                "start_time": s.start_time,
-                "end_time": s.end_time,
-                "location": s.location
-            }))
+            "session": session.map(|s| {
+                let title = s.try_get::<String, _>("title").ok();
+                let start_time = s.try_get::<chrono::DateTime<chrono::Utc>, _>("start_time").ok();
+                let end_time = s.try_get::<chrono::DateTime<chrono::Utc>, _>("end_time").ok();
+                let location = s.try_get::<Option<String>, _>("location").ok();
+                json!({
+                    "title": title,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "location": location
+                })
+            })
         },
         "message": "Registration verified"
     })))

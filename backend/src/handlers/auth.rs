@@ -2,7 +2,7 @@ use axum::{extract::State, Json};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -11,19 +11,13 @@ use crate::{
     config::Config,
     errors::{AppError, AppResult},
     middleware::auth::Claims,
-    models::user::{CreateUserRequest, User, UserResponse, UserRole},
+    models::user::{CreateUserRequest, User, UserResponse},
 };
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
-}
-
-#[derive(Serialize)]
-pub struct LoginResponse {
-    pub token: String,
-    pub user: UserResponse,
 }
 
 pub async fn login(
@@ -73,7 +67,7 @@ pub async fn login(
 }
 
 pub async fn create_super_admin(
-    State((pool, config)): State<(PgPool, Config)>,
+    State((pool, _config)): State<(PgPool, Config)>,
     Json(payload): Json<CreateUserRequest>,
 ) -> AppResult<Json<Value>> {
     // Check if any super_admin exists

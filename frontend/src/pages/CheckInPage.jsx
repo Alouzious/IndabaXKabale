@@ -25,6 +25,7 @@ export default function CheckInPage() {
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState(sessionIdParam || '');
   const [loadingSession, setLoadingSession] = useState(true);
+  const [sessionLoadError, setSessionLoadError] = useState('');
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -40,6 +41,7 @@ export default function CheckInPage() {
   useEffect(() => {
     const load = async () => {
       setLoadingSession(true);
+      setSessionLoadError('');
       try {
         if (sessionToken) {
           const res = await getSessionByToken(sessionToken);
@@ -48,11 +50,16 @@ export default function CheckInPage() {
           setSelectedSessionId(s.id);
         } else {
           const res = await getSessions();
-          setSessions(res.data.data || []);
+          const availableSessions = res.data.data || [];
+          setSessions(availableSessions);
           if (sessionIdParam) setSelectedSessionId(sessionIdParam);
+          if (!sessionIdParam && availableSessions.length === 1) {
+            setSelectedSessionId(availableSessions[0].id);
+          }
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        const message = err?.response?.data?.message || 'Failed to load sessions. Please refresh or try again later.';
+        setSessionLoadError(message);
       } finally {
         setLoadingSession(false);
       }
@@ -106,6 +113,7 @@ export default function CheckInPage() {
   };
 
   const currentSession = session || sessions.find((s) => s.id === selectedSessionId);
+  const noSessionsAvailable = !sessionToken && !loadingSession && !sessionLoadError && sessions.length === 0;
 
   return (
     <>
@@ -224,6 +232,18 @@ export default function CheckInPage() {
                           ))}
                         </select>
                       )}
+                      {noSessionsAvailable && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                          No active sessions found. Create one from Dashboard, then return to check in attendees.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {sessionLoadError && (
+                    <div className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+                      <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
+                      <p className="text-amber-700 dark:text-amber-400 text-sm">{sessionLoadError}</p>
                     </div>
                   )}
 

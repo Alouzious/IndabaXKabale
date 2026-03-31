@@ -9,6 +9,7 @@ import { Lock, Mail, AlertCircle } from 'lucide-react';
 import { login } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { normalizeRole } from '../utils';
 
 const schema = z.object({
   email: z.string().email('Valid email required'),
@@ -30,7 +31,8 @@ export default function LoginPage() {
       const res = await login(data);
       const { token, user } = res.data.data;
       storeLogin(user, token);
-      navigate(user.role === 'super_admin' ? '/admin' : '/cabinet');
+      const role = normalizeRole(user?.role);
+      navigate(role === 'super_admin' ? '/admin' : '/cabinet');
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Check your credentials.');
     } finally {

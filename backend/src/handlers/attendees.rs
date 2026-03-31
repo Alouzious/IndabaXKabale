@@ -4,7 +4,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -122,15 +122,19 @@ pub async fn check_in(
     .ok_or_else(|| AppError::NotFound("Attendee not found".to_string()))?;
 
     // Verify session exists and is active
-    let session = sqlx::query!(
+    let session_row = sqlx::query(
         "SELECT id, title, is_active FROM sessions WHERE id = $1",
-        payload.session_id
     )
+    .bind(payload.session_id)
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Session not found".to_string()))?;
 
-    if !session.is_active {
+    let _session_id: Uuid = session_row.try_get("id")?;
+    let session_title: String = session_row.try_get("title")?;
+    let session_is_active: bool = session_row.try_get("is_active")?;
+
+    if !session_is_active {
         return Err(AppError::BadRequest(
             "This session is not currently active".to_string(),
         ));
@@ -155,7 +159,7 @@ pub async fn check_in(
             "data": {
                 "attendance": attendance,
                 "attendee": attendee,
-                "session_title": session.title
+                "session_title": session_title
             },
             "already_checked_in": false,
             "message": "Checked in successfully!"
@@ -175,7 +179,7 @@ pub async fn check_in(
             "data": {
                 "attendance": existing,
                 "attendee": attendee,
-                "session_title": session.title
+                "session_title": session_title
             },
             "already_checked_in": true,
             "message": "Already checked in!"

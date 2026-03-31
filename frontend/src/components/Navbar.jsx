@@ -4,19 +4,21 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthStore } from '../store/authStore';
+import { normalizeRole } from '../utils';
 
 export default function Navbar() {
   const { isDark, toggle } = useTheme();
   const { isAuthenticated, user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const role = normalizeRole(user?.role);
 
   const handleLogout = () => {
     logout();
     navigate('/');
   };
 
-  const dashboardPath = user?.role === 'super_admin' ? '/admin' : '/cabinet';
+  const dashboardPath = role === 'super_admin' ? '/admin' : '/cabinet';
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-purple-100 dark:border-purple-900/30">
@@ -38,6 +40,11 @@ export default function Navbar() {
             <Link to="/register" className="text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 text-sm font-medium transition-colors">
               Register
             </Link>
+            {isAuthenticated && role === 'super_admin' && (
+              <Link to="/cabinet" className="text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 text-sm font-medium transition-colors">
+                Session Ops
+              </Link>
+            )}
             {isAuthenticated && (
               <Link to={dashboardPath} className="flex items-center gap-1 text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 text-sm font-medium transition-colors">
                 <LayoutDashboard size={16} />
@@ -78,6 +85,9 @@ export default function Navbar() {
             <div className="px-4 py-4 space-y-2">
               <Link to="/sessions" onClick={() => setMobileOpen(false)} className="block py-2 text-gray-600 dark:text-gray-300 hover:text-purple-600">Sessions</Link>
               <Link to="/register" onClick={() => setMobileOpen(false)} className="block py-2 text-gray-600 dark:text-gray-300 hover:text-purple-600">Register</Link>
+              {isAuthenticated && role === 'super_admin' && (
+                <Link to="/cabinet" onClick={() => setMobileOpen(false)} className="block py-2 text-gray-600 dark:text-gray-300 hover:text-purple-600">Session Ops</Link>
+              )}
               {isAuthenticated ? (
                 <>
                   <Link to={dashboardPath} onClick={() => setMobileOpen(false)} className="block py-2 text-gray-600 dark:text-gray-300 hover:text-purple-600">Dashboard</Link>

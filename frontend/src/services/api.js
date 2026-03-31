@@ -1,8 +1,25 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
+// Get API base URL from environment or construct it
+const getApiBaseUrl = () => {
+  // If VITE_API_BASE_URL is explicitly set, use it
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // In production, use the API URL from the environment or construct from window location
+  if (import.meta.env.PROD) {
+    // Example: If frontend is on https://app.example.com, try https://api.example.com
+    return `${import.meta.env.VITE_API_URL || 'https://api.example.com'}/api/v1`;
+  }
+  
+  // In development, use localhost
+  return 'http://localhost:8000/api/v1';
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: getApiBaseUrl(),
   timeout: 15000,
 });
 

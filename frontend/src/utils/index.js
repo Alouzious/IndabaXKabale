@@ -31,3 +31,17 @@ export const downloadBlob = (blob, filename) => {
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
 };
+
+export const normalizeRole = (role) => {
+  if (!role) return '';
+
+  const value = String(role).trim();
+  if (!value) return '';
+
+  const snakeCase = value
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[\s-]+/g, '_')
+    .toLowerCase();
+
+  return snakeCase;
+};
