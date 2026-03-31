@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --color-indaba-purple: #7C3AED;
+  --color-indaba-purple-dark: #5B21B6;
+  --color-indaba-purple-light: #A78BFA;
+  --color-indaba-gold: #F59E0B;
+  --color-indaba-gold-dark: #D97706;
+  --font-family-sans: 'Plus Jakarta Sans', sans-serif;
+}
+
+* {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.glassmorphism {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glassmorphism {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
