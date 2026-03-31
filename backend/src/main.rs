@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .allow_methods(Any)
             .allow_headers(Any)
-            .allow_credentials()
+            .allow_credentials(true)  // ← fixed: was .allow_credentials()
     } else {
         // In development, be more permissive
         CorsLayer::new()
