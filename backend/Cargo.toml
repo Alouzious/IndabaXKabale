@@ -1,0 +1,21 @@
+[package]
+name = "my_backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.5"
+tokio = { version = "1", features = ["full"] }
+tower-http = "0.3"
+sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-rustls", "macros"] }
+uuid = "1.0"
+dotenvy = "0.15"
+jwt = "8.0"
+bcrypt = "0.10"
+validator = "0.14"
+serde = "1.0"
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+time = "0.3"
