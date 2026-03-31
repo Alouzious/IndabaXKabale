@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { ArrowRight, QrCode, Users, BarChart3, Shield, MapPin, Calendar, Zap, Mic, FlaskConical, Network } from 'lucide-react';
+import { ArrowRight, Users, BarChart3, MapPin, Calendar, Zap, Mic, FlaskConical, Network, Globe, Brain, Rocket } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -21,33 +21,31 @@ export default function HomePage() {
         })}</script>
       </Helmet>
 
-      <div className="min-h-screen bg-white dark:bg-gray-950">
+      <div className="min-h-screen w-full overflow-x-hidden bg-white dark:bg-gray-950">
 
         {/* ── Hero ── */}
-        <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+        <section className="relative min-h-screen w-full flex items-center justify-center overflow-hidden pt-16">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900" />
 
           {/* Decorative blobs */}
-          <div className="absolute inset-0 opacity-20 pointer-events-none">
-            <div className="absolute top-10 left-10 w-80 h-80 bg-amber-400 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-400 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }} />
+          <div className="absolute inset-0 opacity-20 pointer-events-none overflow-hidden">
+            <div className="absolute top-10 left-10 w-72 h-72 bg-amber-400 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute bottom-10 right-10 w-80 h-80 bg-indigo-400 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }} />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-300 rounded-full blur-3xl" />
           </div>
 
-          <div className="relative z-10 max-w-5xl mx-auto px-4 text-center">
+          <div className="relative z-10 w-full max-w-5xl mx-auto px-4 text-center">
 
-            {/* Badge */}
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
               className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-white/80 text-sm mb-8"
             >
-              <Zap size={13} className="text-amber-400" />
+              <Zap size={13} className="text-amber-400 shrink-0" />
               Kabale's AI & Machine Learning Community
             </motion.div>
 
-            {/* Headline */}
             <motion.h1
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -61,7 +59,6 @@ export default function HomePage() {
               KAB
             </motion.h1>
 
-            {/* Tagline */}
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -81,7 +78,6 @@ export default function HomePage() {
               building skills, sharing knowledge, and shaping the future of AI on the African continent.
             </motion.p>
 
-            {/* CTAs */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -102,23 +98,22 @@ export default function HomePage() {
               </Link>
             </motion.div>
 
-            {/* Meta info */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8 }}
-              className="mt-14 flex flex-wrap justify-center gap-8 text-white/60 text-sm"
+              className="mt-14 flex flex-wrap justify-center gap-6 text-white/60 text-sm"
             >
               <div className="flex items-center gap-2">
-                <MapPin size={15} className="text-amber-400" />
+                <MapPin size={15} className="text-amber-400 shrink-0" />
                 Kabale, Uganda
               </div>
               <div className="flex items-center gap-2">
-                <Calendar size={15} className="text-amber-400" />
+                <Calendar size={15} className="text-amber-400 shrink-0" />
                 Regular Sessions
               </div>
               <div className="flex items-center gap-2">
-                <Users size={15} className="text-amber-400" />
+                <Users size={15} className="text-amber-400 shrink-0" />
                 Open to Everyone
               </div>
             </motion.div>
@@ -126,7 +121,7 @@ export default function HomePage() {
         </section>
 
         {/* ── What We Do ── */}
-        <section className="py-24 px-4 bg-gray-50 dark:bg-gray-900">
+        <section className="py-24 px-4 w-full bg-gray-50 dark:bg-gray-900">
           <div className="max-w-6xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -182,7 +177,7 @@ export default function HomePage() {
                   transition={{ delay: i * 0.1 }}
                   className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow"
                 >
-                  <div className={`w-12 h-12 rounded-xl ${item.bg} flex items-center justify-center mb-4`}>
+                  <div className={`w-12 h-12 rounded-xl ${item.bg} flex items-center justify-center mb-4 shrink-0`}>
                     <item.icon size={22} className={item.color} />
                   </div>
                   <h3 className="font-bold text-gray-900 dark:text-white mb-2">{item.title}</h3>
@@ -194,7 +189,7 @@ export default function HomePage() {
         </section>
 
         {/* ── Why Join ── */}
-        <section className="py-24 px-4 bg-white dark:bg-gray-950">
+        <section className="py-24 px-4 w-full bg-white dark:bg-gray-950">
           <div className="max-w-4xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -213,9 +208,27 @@ export default function HomePage() {
 
             <div className="grid md:grid-cols-3 gap-8 text-center">
               {[
-                { stat: '🌍', label: 'Pan-African Network', sub: 'Part of the global IndabaX movement across Africa' },
-                { stat: '🧠', label: 'Real Skills', sub: 'Practical knowledge you can use in research and industry' },
-                { stat: '🚀', label: 'Launch Your Career', sub: 'Connect with opportunities, mentors, and collaborators' },
+                {
+                  icon: Globe,
+                  color: 'text-purple-500',
+                  bg: 'bg-purple-50 dark:bg-purple-900/20',
+                  label: 'Pan-African Network',
+                  sub: 'Part of the global IndabaX movement across Africa',
+                },
+                {
+                  icon: Brain,
+                  color: 'text-amber-500',
+                  bg: 'bg-amber-50 dark:bg-amber-900/20',
+                  label: 'Real Skills',
+                  sub: 'Practical knowledge you can use in research and industry',
+                },
+                {
+                  icon: Rocket,
+                  color: 'text-blue-500',
+                  bg: 'bg-blue-50 dark:bg-blue-900/20',
+                  label: 'Launch Your Career',
+                  sub: 'Connect with opportunities, mentors, and collaborators',
+                },
               ].map((item, i) => (
                 <motion.div
                   key={item.label}
@@ -223,9 +236,11 @@ export default function HomePage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.15 }}
-                  className="p-6"
+                  className="flex flex-col items-center p-6"
                 >
-                  <div className="text-5xl mb-4">{item.stat}</div>
+                  <div className={`w-16 h-16 rounded-2xl ${item.bg} flex items-center justify-center mb-4`}>
+                    <item.icon size={28} className={item.color} />
+                  </div>
                   <h3 className="font-bold text-gray-900 dark:text-white text-lg mb-2">{item.label}</h3>
                   <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">{item.sub}</p>
                 </motion.div>
@@ -235,7 +250,7 @@ export default function HomePage() {
         </section>
 
         {/* ── CTA ── */}
-        <section className="py-24 px-4 bg-gray-50 dark:bg-gray-900">
+        <section className="py-24 px-4 w-full bg-gray-50 dark:bg-gray-900">
           <div className="max-w-3xl mx-auto text-center">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
