@@ -6,7 +6,7 @@ export function useTheme() {
   
   useEffect(() => {
     init();
-  }, []);
+  }, [init]);
 
   return { isDark, toggle };
 }
