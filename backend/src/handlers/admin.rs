@@ -12,7 +12,7 @@ use crate::{
     config::Config,
     errors::{AppError, AppResult},
     middleware::auth::Claims,
-    models::user::{CreateUserRequest, User, UserResponse, UserRole},
+    models::user::{CreateUserRequest, User, UserResponse},
 };
 
 #[derive(Deserialize)]
@@ -32,36 +32,17 @@ pub async fn list_attendees(
     let per_page = params.per_page.unwrap_or(50).min(100);
     let offset = (page - 1) * per_page;
 
-    let registrations = if let Some(session_id) = params.session_id {
-        sqlx::query!(
-            "SELECT r.*, s.title as session_title FROM registrations r
-             JOIN sessions s ON r.session_id = s.id
-             WHERE r.session_id = $1
-             ORDER BY r.created_at DESC LIMIT $2 OFFSET $3",
-            session_id, per_page, offset
-        )
-        .fetch_all(&pool)
-        .await?
-        .into_iter()
-        .map(|r| json!({
-            "id": r.id,
-            "registration_id": r.registration_id,
-            "session_id": r.session_id,
-            "full_name": r.full_name,
-            "email": r.email,
-            "phone": r.phone,
-            "course_or_profession": r.course_or_profession,
-            "created_at": r.created_at,
-            "session_title": r.session_title
-        }))
-        .collect::<Vec<_>>()
-    } else if let Some(search) = &params.search {
+    // List attendee profiles (not per-session)
+    let attendees = if let Some(ref search) = params.search {
         let pattern = format!("%{}%", search);
         sqlx::query!(
-            "SELECT r.*, s.title as session_title FROM registrations r
-             JOIN sessions s ON r.session_id = s.id
-             WHERE r.full_name ILIKE $1 OR r.email ILIKE $1 OR r.course_or_profession ILIKE $1
-             ORDER BY r.created_at DESC LIMIT $2 OFFSET $3",
+            "SELECT a.id, a.full_name, a.email, a.phone, a.course_or_profession, a.created_at,
+                    COUNT(att.id)::INTEGER as total_checkins
+             FROM attendees a
+             LEFT JOIN attendances att ON att.attendee_id = a.id
+             WHERE a.full_name ILIKE $1 OR a.email ILIKE $1 OR a.course_or_profession ILIKE $1
+             GROUP BY a.id
+             ORDER BY a.created_at DESC LIMIT $2 OFFSET $3",
             pattern, per_page, offset
         )
         .fetch_all(&pool)
@@ -69,21 +50,22 @@ pub async fn list_attendees(
         .into_iter()
         .map(|r| json!({
             "id": r.id,
-            "registration_id": r.registration_id,
-            "session_id": r.session_id,
             "full_name": r.full_name,
             "email": r.email,
             "phone": r.phone,
             "course_or_profession": r.course_or_profession,
             "created_at": r.created_at,
-            "session_title": r.session_title
+            "total_checkins": r.total_checkins.unwrap_or(0)
         }))
         .collect::<Vec<_>>()
     } else {
         sqlx::query!(
-            "SELECT r.*, s.title as session_title FROM registrations r
-             JOIN sessions s ON r.session_id = s.id
-             ORDER BY r.created_at DESC LIMIT $1 OFFSET $2",
+            "SELECT a.id, a.full_name, a.email, a.phone, a.course_or_profession, a.created_at,
+                    COUNT(att.id)::INTEGER as total_checkins
+             FROM attendees a
+             LEFT JOIN attendances att ON att.attendee_id = a.id
+             GROUP BY a.id
+             ORDER BY a.created_at DESC LIMIT $1 OFFSET $2",
             per_page, offset
         )
         .fetch_all(&pool)
@@ -91,26 +73,24 @@ pub async fn list_attendees(
         .into_iter()
         .map(|r| json!({
             "id": r.id,
-            "registration_id": r.registration_id,
-            "session_id": r.session_id,
             "full_name": r.full_name,
             "email": r.email,
             "phone": r.phone,
             "course_or_profession": r.course_or_profession,
             "created_at": r.created_at,
-            "session_title": r.session_title
+            "total_checkins": r.total_checkins.unwrap_or(0)
         }))
         .collect::<Vec<_>>()
     };
 
-    let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM registrations")
+    let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM attendees")
         .fetch_one(&pool)
         .await?;
 
     Ok(Json(json!({
         "success": true,
         "data": {
-            "registrations": registrations,
+            "attendees": attendees,
             "total": total,
             "page": page,
             "per_page": per_page
@@ -124,52 +104,63 @@ pub async fn export_csv(
     Extension(_claims): Extension<Claims>,
     Query(params): Query<AttendeeQuery>,
 ) -> AppResult<axum::response::Response> {
-    use axum::response::IntoResponse;
     use axum::http::header;
+    use axum::response::IntoResponse;
 
+    // Export check-ins; if session_id provided, filter to that session
     let rows = if let Some(session_id) = params.session_id {
         sqlx::query!(
-            "SELECT r.registration_id, r.full_name, r.email, r.phone, r.course_or_profession, r.created_at, s.title as session_title
-             FROM registrations r JOIN sessions s ON r.session_id = s.id
-             WHERE r.session_id = $1 ORDER BY r.created_at DESC",
+            "SELECT a.full_name, a.email, a.phone, a.course_or_profession,
+                    att.checked_in_at, s.title as session_title
+             FROM attendances att
+             JOIN attendees a ON att.attendee_id = a.id
+             JOIN sessions s ON att.session_id = s.id
+             WHERE att.session_id = $1
+             ORDER BY att.checked_in_at ASC",
             session_id
         )
         .fetch_all(&pool)
         .await?
         .into_iter()
-        .map(|r| (r.registration_id, r.full_name, r.email, r.phone, r.course_or_profession, r.created_at.to_string(), r.session_title))
+        .map(|r| (r.full_name, r.email, r.phone, r.course_or_profession, r.checked_in_at.to_string(), r.session_title))
         .collect::<Vec<_>>()
     } else {
         sqlx::query!(
-            "SELECT r.registration_id, r.full_name, r.email, r.phone, r.course_or_profession, r.created_at, s.title as session_title
-             FROM registrations r JOIN sessions s ON r.session_id = s.id
-             ORDER BY r.created_at DESC"
+            "SELECT a.full_name, a.email, a.phone, a.course_or_profession,
+                    att.checked_in_at, s.title as session_title
+             FROM attendances att
+             JOIN attendees a ON att.attendee_id = a.id
+             JOIN sessions s ON att.session_id = s.id
+             ORDER BY att.checked_in_at ASC"
         )
         .fetch_all(&pool)
         .await?
         .into_iter()
-        .map(|r| (r.registration_id, r.full_name, r.email, r.phone, r.course_or_profession, r.created_at.to_string(), r.session_title))
+        .map(|r| (r.full_name, r.email, r.phone, r.course_or_profession, r.checked_in_at.to_string(), r.session_title))
         .collect::<Vec<_>>()
     };
 
-    let mut csv_content = "Registration ID,Full Name,Email,Phone,Course/Profession,Session,Registered At\n".to_string();
-    for (reg_id, name, email, phone, course, created_at, session_title) in &rows {
+    let mut csv_content = "Full Name,Email,Phone,Course/Profession,Session,Checked In At\n".to_string();
+    for (name, email, phone, course, checked_in_at, session_title) in &rows {
         csv_content.push_str(&format!(
-            "{},{},{},{},{},{},{}\n",
-            reg_id,
+            "{},{},{},{},{},{}\n",
             name.replace(',', ";"),
             email,
             phone.as_deref().unwrap_or(""),
             course.replace(',', ";"),
             session_title.replace(',', ";"),
-            created_at
+            checked_in_at
         ));
     }
 
     Ok((
-        [(header::CONTENT_TYPE, "text/csv"), (header::CONTENT_DISPOSITION, "attachment; filename=\"attendees.csv\"")],
+        [
+            (header::CONTENT_TYPE, "text/csv"),
+            (header::CONTENT_DISPOSITION, "attachment; filename=\"checkins.csv\""),
+        ],
         csv_content,
-    ).into_response())
+    )
+        .into_response())
 }
 
 pub async fn list_cabinet_users(
@@ -231,10 +222,12 @@ pub async fn deactivate_user(
     Extension(_claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<Value>> {
-    let result = sqlx::query("UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1 AND role = 'cabinet'")
-        .bind(id)
-        .execute(&pool)
-        .await?;
+    let result = sqlx::query(
+        "UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1 AND role = 'cabinet'"
+    )
+    .bind(id)
+    .execute(&pool)
+    .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("Cabinet user not found".to_string()));
@@ -251,12 +244,12 @@ pub async fn get_analytics(
     State((pool, _config)): State<(PgPool, Config)>,
     Extension(_claims): Extension<Claims>,
 ) -> AppResult<Json<Value>> {
-    // Registrations per day (last 14 days)
-    let daily_registrations = sqlx::query!(
-        "SELECT DATE(created_at) as date, COUNT(*) as count
-         FROM registrations
-         WHERE created_at >= NOW() - INTERVAL '14 days'
-         GROUP BY DATE(created_at)
+    // Check-ins per day (last 14 days)
+    let daily_checkins = sqlx::query!(
+        "SELECT DATE(checked_in_at) as date, COUNT(*) as count
+         FROM attendances
+         WHERE checked_in_at >= NOW() - INTERVAL '14 days'
+         GROUP BY DATE(checked_in_at)
          ORDER BY date ASC"
     )
     .fetch_all(&pool)
@@ -265,20 +258,23 @@ pub async fn get_analytics(
     .map(|r| json!({ "date": r.date, "count": r.count }))
     .collect::<Vec<_>>();
 
-    // Sessions popularity
+    // Sessions popularity (by check-in count)
     let session_popularity = sqlx::query!(
-        "SELECT s.title, s.registration_count, s.capacity
-         FROM sessions s ORDER BY s.registration_count DESC"
+        "SELECT s.title, COUNT(att.id)::INTEGER as checkin_count, s.capacity
+         FROM sessions s
+         LEFT JOIN attendances att ON att.session_id = s.id
+         GROUP BY s.id
+         ORDER BY checkin_count DESC"
     )
     .fetch_all(&pool)
     .await?
     .into_iter()
-    .map(|r| json!({ "title": r.title, "registrations": r.registration_count, "capacity": r.capacity }))
+    .map(|r| json!({ "title": r.title, "checkins": r.checkin_count.unwrap_or(0), "capacity": r.capacity }))
     .collect::<Vec<_>>();
 
-    // Top professions
+    // Top professions (from attendees table)
     let professions = sqlx::query!(
-        "SELECT course_or_profession, COUNT(*) as count FROM registrations
+        "SELECT course_or_profession, COUNT(*) as count FROM attendees
          GROUP BY course_or_profession ORDER BY count DESC LIMIT 10"
     )
     .fetch_all(&pool)
@@ -290,10 +286,12 @@ pub async fn get_analytics(
     Ok(Json(json!({
         "success": true,
         "data": {
-            "daily_registrations": daily_registrations,
+            "daily_checkins": daily_checkins,
             "session_popularity": session_popularity,
             "top_professions": professions
         },
         "message": "Analytics data retrieved"
     })))
 }
+
+

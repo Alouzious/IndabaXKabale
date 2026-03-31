@@ -7,7 +7,7 @@ use sqlx::PgPool;
 
 use crate::{
     config::Config,
-    handlers::{admin, auth, cabinet, registrations, sessions},
+    handlers::{admin, auth, cabinet, registrations, sessions, attendees},
     middleware::auth::{auth_middleware, require_super_admin},
 };
 
@@ -19,8 +19,13 @@ pub fn create_router(pool: PgPool, config: Config) -> Router {
         .route("/sessions", get(sessions::list_sessions))
         .route("/sessions/:id", get(sessions::get_session))
         .route("/sessions/token/:token", get(sessions::get_session_by_token))
+        // Legacy registration endpoint (kept for backward compat)
         .route("/registrations", post(registrations::create_registration))
         .route("/verify/:registration_id", get(registrations::verify_registration))
+        // New attendee registration + check-in (public)
+        .route("/attendees", post(attendees::register_attendee))
+        .route("/attendees/search", get(attendees::search_attendees))
+        .route("/checkin", post(attendees::check_in))
         .route("/auth/login", post(auth::login))
         .route("/auth/setup", post(auth::create_super_admin))
         .with_state(state.clone());
@@ -31,6 +36,8 @@ pub fn create_router(pool: PgPool, config: Config) -> Router {
         .route("/cabinet/sessions", get(sessions::list_all_sessions))
         .route("/cabinet/sessions", post(sessions::create_session))
         .route("/cabinet/sessions/:id/qrcode", get(sessions::get_session_qrcode))
+        .route("/cabinet/sessions/:id/checkins", get(cabinet::get_session_checkins))
+        .route("/cabinet/never-attended", get(cabinet::get_never_attended))
         .route_layer(middleware::from_fn_with_state(config.clone(), auth_middleware))
         .with_state(state.clone());
 
@@ -58,3 +65,4 @@ pub fn create_router(pool: PgPool, config: Config) -> Router {
 async fn health_check() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({ "status": "ok", "service": "IndabaX Kabale API" }))
 }
+

@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { CheckCircle, User, Mail, Phone, BookOpen, ChevronDown, AlertCircle } from 'lucide-react';
-import { getSessions, createRegistration, getSessionByToken } from '../services/api';
+import { CheckCircle, User, Mail, Phone, BookOpen, AlertCircle, ArrowRight } from 'lucide-react';
+import { registerAttendee } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const schema = z.object({
@@ -14,53 +14,25 @@ const schema = z.object({
   email: z.string().email('Valid email is required'),
   phone: z.string().optional(),
   course_or_profession: z.string().min(2, 'Course or profession is required'),
-  session_id: z.string().uuid('Please select a session'),
 });
 
 export default function RegisterPage() {
-  const [searchParams] = useSearchParams();
-  const sessionToken = searchParams.get('session');
-  const sessionId = searchParams.get('session_id');
-
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   const [error, setError] = useState('');
 
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { session_id: sessionId || '' },
   });
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        if (sessionToken) {
-          const res = await getSessionByToken(sessionToken);
-          const session = res.data.data;
-          setSessions([session]);
-          setValue('session_id', session.id);
-        } else {
-          const res = await getSessions();
-          setSessions(res.data.data || []);
-          if (sessionId) setValue('session_id', sessionId);
-        }
-      } catch {
-        setError('Failed to load sessions.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [sessionToken, sessionId, setValue]);
 
   const onSubmit = async (data) => {
     setSubmitting(true);
     setError('');
     try {
-      const res = await createRegistration({ ...data });
+      const res = await registerAttendee(data);
       setSuccess(res.data.data);
+      setAlreadyRegistered(res.data.already_registered === true);
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
@@ -68,19 +40,11 @@ export default function RegisterPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center pt-16">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
   return (
     <>
       <Helmet>
         <title>Register — IndabaX Kabale</title>
-        <meta name="description" content="Register to attend IndabaX Kabale sessions." />
+        <meta name="description" content="Register once to join IndabaX Kabale. Then check in at any session." />
       </Helmet>
 
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 pt-24 pb-16 px-4">
@@ -96,16 +60,16 @@ export default function RegisterPage() {
                 <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
                   <CheckCircle size={40} className="text-green-600 dark:text-green-400" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Registration Successful!</h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">You're all set. See you at the conference!</p>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                  {alreadyRegistered ? 'Already Registered!' : 'Registration Successful!'}
+                </h2>
+                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                  {alreadyRegistered
+                    ? 'Your profile is already in our system. Proceed to check in at a session!'
+                    : "You're all set! When you arrive at a session, just search your name to check in."}
+                </p>
 
-                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-4 mb-6">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Your Registration ID</p>
-                  <p className="text-2xl font-mono font-bold text-purple-600 dark:text-purple-400">{success.registration_id}</p>
-                  <p className="text-xs text-gray-400 mt-1">Save this ID for check-in</p>
-                </div>
-
-                <div className="text-left space-y-2 mb-6">
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-4 mb-6 text-left space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Name</span>
                     <span className="font-medium text-gray-900 dark:text-white">{success.full_name}</span>
@@ -120,9 +84,15 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
+                <Link
+                  to="/checkin"
+                  className="flex items-center justify-center gap-2 w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors mb-3"
+                >
+                  Go to Session Check-in <ArrowRight size={18} />
+                </Link>
                 <button
-                  onClick={() => setSuccess(null)}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors"
+                  onClick={() => { setSuccess(null); setAlreadyRegistered(false); }}
+                  className="w-full py-3 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-semibold rounded-xl transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Register Another Person
                 </button>
@@ -138,7 +108,14 @@ export default function RegisterPage() {
                     <User size={28} className="text-white" />
                   </div>
                   <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Register</h1>
-                  <p className="text-gray-500 dark:text-gray-400 mt-1">Secure your seat at IndabaX Kabale</p>
+                  <p className="text-gray-500 dark:text-gray-400 mt-1">One-time registration for IndabaX Kabale</p>
+                </div>
+
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6">
+                  <p className="text-sm text-amber-800 dark:text-amber-300">
+                    <strong>Already registered?</strong>{' '}
+                    <Link to="/checkin" className="underline font-semibold">Go to session check-in →</Link>
+                  </p>
                 </div>
 
                 {error && (
@@ -153,28 +130,6 @@ export default function RegisterPage() {
                 )}
 
                 <form onSubmit={handleSubmit(onSubmit)} className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-xl border border-gray-100 dark:border-gray-700 space-y-5">
-                  {/* Session */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                      Session *
-                    </label>
-                    <div className="relative">
-                      <select
-                        {...register('session_id')}
-                        className="w-full appearance-none bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      >
-                        <option value="">Select a session</option>
-                        {sessions.map((s) => (
-                          <option key={s.id} value={s.id} disabled={s.registration_count >= s.capacity}>
-                            {s.title}{s.registration_count >= s.capacity ? ' (Full)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
-                    {errors.session_id && <p className="text-red-500 text-xs mt-1">{errors.session_id.message}</p>}
-                  </div>
-
                   {/* Full Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Full Name *</label>
@@ -244,7 +199,7 @@ export default function RegisterPage() {
                         <LoadingSpinner size="sm" />
                         Registering...
                       </span>
-                    ) : 'Register Now'}
+                    ) : 'Register'}
                   </button>
                 </form>
               </motion.div>

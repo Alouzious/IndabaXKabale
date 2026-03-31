@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { Users, Calendar, TrendingUp, QrCode, Plus, X, Download } from 'lucide-react';
+import { Users, Calendar, TrendingUp, QrCode, Plus, X, Download, CheckCircle, UserX } from 'lucide-react';
 import QRCode from 'react-qr-code';
-import { getCabinetStats, createSession, getSessionQrCode } from '../services/api';
+import { getCabinetStats, createSession, getSessionQrCode, getSessionCheckins, getNeverAttended } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import StatCard from '../components/StatCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -17,6 +17,17 @@ export default function CabinetDashboard() {
   const [qrData, setQrData] = useState(null);
   const [creating, setCreating] = useState(false);
   const [sessionForm, setSessionForm] = useState({ title: '', speaker: '', location: '', start_time: '', end_time: '', capacity: 100, description: '' });
+
+  // Session checkins panel
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [selectedSessionTitle, setSelectedSessionTitle] = useState('');
+  const [checkins, setCheckins] = useState([]);
+  const [loadingCheckins, setLoadingCheckins] = useState(false);
+
+  // Never attended panel
+  const [showNeverAttended, setShowNeverAttended] = useState(false);
+  const [neverAttended, setNeverAttended] = useState([]);
+  const [loadingNever, setLoadingNever] = useState(false);
 
   const fetchStats = async () => {
     try {
@@ -61,6 +72,31 @@ export default function CabinetDashboard() {
     }
   };
 
+  const handleShowCheckins = async (sessionId, title) => {
+    setSelectedSessionId(sessionId);
+    setSelectedSessionTitle(title);
+    setLoadingCheckins(true);
+    setCheckins([]);
+    try {
+      const res = await getSessionCheckins(sessionId);
+      setCheckins(res.data.data || []);
+    } catch {
+      alert('Failed to load check-ins');
+    } finally {
+      setLoadingCheckins(false);
+    }
+  };
+
+  const handleShowNeverAttended = async () => {
+    setShowNeverAttended(true);
+    setLoadingNever(true);
+    try {
+      const res = await getNeverAttended();
+      setNeverAttended(res.data.data || []);
+    } catch {}
+    finally { setLoadingNever(false); }
+  };
+
   const downloadQR = (format) => {
     const svg = document.getElementById('qr-svg');
     if (!svg) return;
@@ -95,22 +131,31 @@ export default function CabinetDashboard() {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Cabinet Dashboard</h1>
               <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Welcome back, {user?.name}</p>
             </div>
-            <button
-              onClick={() => setShowCreateSession(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-xl text-sm transition-colors"
-            >
-              <Plus size={16} /> New Session
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleShowNeverAttended}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 font-medium rounded-xl text-sm transition-colors hover:bg-amber-100"
+              >
+                <UserX size={16} /> Never Attended
+              </button>
+              <button
+                onClick={() => setShowCreateSession(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-xl text-sm transition-colors"
+              >
+                <Plus size={16} /> New Session
+              </button>
+            </div>
           </div>
 
           {/* Stat cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            <StatCard icon={Users} title="Total Registrations" value={stats?.total_registrations || 0} color="purple" delay={0} />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <StatCard icon={Users} title="Total Attendees" value={stats?.total_attendees || 0} color="purple" delay={0} />
+            <StatCard icon={CheckCircle} title="Total Check-ins" value={stats?.total_checkins || 0} color="green" delay={0.05} />
             <StatCard icon={Calendar} title="Total Sessions" value={stats?.total_sessions || 0} color="blue" delay={0.1} />
-            <StatCard icon={TrendingUp} title="Active Sessions" value={stats?.active_sessions || 0} color="green" delay={0.2} />
+            <StatCard icon={UserX} title="Never Attended" value={stats?.never_attended || 0} color="amber" delay={0.15} />
           </div>
 
-          {/* Sessions */}
+          {/* Sessions with check-ins */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Sessions Overview</h2>
             <div className="space-y-4">
@@ -119,7 +164,7 @@ export default function CabinetDashboard() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{s.title}</p>
-                      <span className="text-xs text-gray-500 ml-2 shrink-0">{s.registration_count}/{s.capacity}</span>
+                      <span className="text-xs text-gray-500 ml-2 shrink-0">{s.checkin_count}/{s.capacity} checked in</span>
                     </div>
                     <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
@@ -128,12 +173,20 @@ export default function CabinetDashboard() {
                       />
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleShowQr(s.id)}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-100 transition-colors shrink-0"
-                  >
-                    <QrCode size={14} /> QR
-                  </button>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => handleShowCheckins(s.id, s.title)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 transition-colors"
+                    >
+                      <CheckCircle size={13} /> List
+                    </button>
+                    <button
+                      onClick={() => handleShowQr(s.id)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-100 transition-colors"
+                    >
+                      <QrCode size={13} /> QR
+                    </button>
+                  </div>
                 </div>
               ))}
               {!stats?.sessions?.length && (
@@ -142,26 +195,113 @@ export default function CabinetDashboard() {
             </div>
           </div>
 
-          {/* Recent registrations */}
+          {/* Recent check-ins */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Recent Registrations <span className="text-xs text-gray-400 font-normal">(refreshes every 30s)</span></h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+              Recent Check-ins <span className="text-xs text-gray-400 font-normal">(refreshes every 30s)</span>
+            </h2>
             <div className="space-y-3">
-              {(stats?.recent_registrations || []).map((r) => (
-                <div key={r.registration_id} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-700 last:border-0">
+              {(stats?.recent_checkins || []).map((r, i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-700 last:border-0">
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white text-sm">{r.full_name}</p>
                     <p className="text-xs text-gray-400">{r.course_or_profession} · {r.session_title}</p>
                   </div>
-                  <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleTimeString()}</span>
+                  <span className="text-xs text-gray-400">{new Date(r.checked_in_at).toLocaleTimeString()}</span>
                 </div>
               ))}
-              {!stats?.recent_registrations?.length && (
-                <p className="text-center text-gray-400 py-4 text-sm">No registrations yet</p>
+              {!stats?.recent_checkins?.length && (
+                <p className="text-center text-gray-400 py-4 text-sm">No check-ins yet</p>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Session Check-ins Modal */}
+      {selectedSessionId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Check-ins</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{selectedSessionTitle}</p>
+              </div>
+              <button onClick={() => setSelectedSessionId(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            {loadingCheckins ? (
+              <LoadingSpinner size="lg" className="py-8" />
+            ) : (
+              <div className="overflow-y-auto flex-1">
+                {checkins.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8">No check-ins yet for this session</p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500 mb-3">{checkins.length} people checked in</p>
+                    {checkins.map((c, i) => (
+                      <div key={c.attendee_id} className="flex items-center gap-3 py-2 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                        <span className="text-xs text-gray-400 w-6 text-right flex-shrink-0">{i + 1}</span>
+                        <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                          <CheckCircle size={14} className="text-green-600 dark:text-green-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-white text-sm">{c.full_name}</p>
+                          <p className="text-xs text-gray-400 truncate">{c.course_or_profession}</p>
+                        </div>
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {new Date(c.checked_in_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
+
+      {/* Never Attended Modal */}
+      {showNeverAttended && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Never Attended</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Registered but no check-ins</p>
+              </div>
+              <button onClick={() => setShowNeverAttended(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            {loadingNever ? (
+              <LoadingSpinner size="lg" className="py-8" />
+            ) : (
+              <div className="overflow-y-auto flex-1">
+                {neverAttended.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8">Everyone has attended at least one session! 🎉</p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500 mb-3">{neverAttended.length} registered, never checked in</p>
+                    {neverAttended.map((a) => (
+                      <div key={a.id} className="flex items-center gap-3 py-2 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                        <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                          <UserX size={14} className="text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-white text-sm">{a.full_name}</p>
+                          <p className="text-xs text-gray-400 truncate">{a.course_or_profession}</p>
+                        </div>
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {new Date(a.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
 
       {/* Create Session Modal */}
       {showCreateSession && (
@@ -215,7 +355,8 @@ export default function CabinetDashboard() {
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">Session QR Code</h3>
               <button onClick={() => setQrData(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 font-medium">{qrData.session?.title}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 font-medium">{qrData.session?.title}</p>
+            <p className="text-xs text-purple-400 mb-4">Scans open the check-in page</p>
             <div className="bg-white p-4 rounded-2xl inline-block mb-4">
               <QRCode id="qr-svg" value={qrData.qr_url} size={200} />
             </div>
@@ -234,3 +375,4 @@ export default function CabinetDashboard() {
     </>
   );
 }
+

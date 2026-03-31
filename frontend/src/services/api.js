@@ -34,17 +34,20 @@ export const createSession = (data) => api.post('/cabinet/sessions', data);
 export const updateSession = (id, data) => api.put(`/admin/sessions/${id}`, data);
 export const deleteSession = (id) => api.delete(`/admin/sessions/${id}`);
 export const getSessionQrCode = (id) => api.get(`/cabinet/sessions/${id}/qrcode`);
+export const getSessionCheckins = (id) => api.get(`/cabinet/sessions/${id}/checkins`);
 
-// Registrations
-export const createRegistration = (data) => api.post('/registrations', data);
-export const verifyRegistration = (id) => api.get(`/verify/${id}`);
+// Attendees (new system)
+export const registerAttendee = (data) => api.post('/attendees', data);
+export const searchAttendees = (q) => api.get('/attendees/search', { params: { q } });
+export const checkIn = (data) => api.post('/checkin', data);
+
+// Cabinet
+export const getCabinetStats = () => api.get('/cabinet/stats');
+export const getNeverAttended = () => api.get('/cabinet/never-attended');
 
 // Auth
 export const login = (data) => api.post('/auth/login', data);
 export const setupAdmin = (data) => api.post('/auth/setup', data);
-
-// Cabinet
-export const getCabinetStats = () => api.get('/cabinet/stats');
 
 // Admin
 export const getAttendees = (params) => api.get('/admin/attendees', { params });

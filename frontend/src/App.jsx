@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import SessionsPage from './pages/SessionsPage';
 import RegisterPage from './pages/RegisterPage';
+import CheckInPage from './pages/CheckInPage';
 import LoginPage from './pages/LoginPage';
 import CabinetDashboard from './pages/CabinetDashboard';
 import AdminDashboard from './pages/AdminDashboard';
@@ -25,6 +26,7 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/sessions" element={<SessionsPage />} />
                   <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/checkin" element={<CheckInPage />} />
                   <Route
                     path="/cabinet"
                     element={
@@ -53,3 +55,4 @@ function App() {
 }
 
 export default App;
+

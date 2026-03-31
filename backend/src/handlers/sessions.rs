@@ -183,7 +183,7 @@ pub async fn get_session_qrcode(
         .ok_or_else(|| AppError::NotFound("Session not found".to_string()))?;
 
     let frontend_url = config.frontend_url.trim_end_matches('/');
-    let qr_url = format!("{}/register?session={}", frontend_url, session.qr_token);
+    let qr_url = format!("{}/checkin?session={}", frontend_url, session.qr_token);
 
     Ok(Json(json!({
         "success": true,
